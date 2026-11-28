@@ -17,6 +17,7 @@ use App\Http\Controllers\AdminReportController;
 use App\Http\Controllers\SystemSettingController;
 use App\Http\Controllers\SiswaProfileController;
 use App\Http\Controllers\ScanSiswaController;
+use App\Http\Controllers\LeaveSiswaController; // BARU
 
 /*
 |--------------------------------------------------------------------------
@@ -87,6 +88,9 @@ Route::middleware(['auth'])->group(function () {
     // DEFAULT DASHBOARD ROUTE
     Route::get('/dashboard', [DashboardOverviewController::class, 'index'])->name('dashboard');
     Route::get('/dasbor', [DashboardOverviewController::class, 'index'])->name('dasbor');
+
+    // Unduh dokumen pendukung izin (pemilik pengajuan atau admin)
+    Route::get('/leave/{id}/document', [LeaveSiswaController::class, 'document'])->name('leave.document'); // BARU
 
     // ------------------------------------------
     // ADMIN ROUTES
@@ -180,10 +184,15 @@ Route::middleware(['auth'])->group(function () {
 
         // Profile Siswa
         Route::get('/profile', [SiswaProfileController::class, 'index'])->name('profile');
+        Route::put('/profile', [SiswaProfileController::class, 'update'])->name('profile.update'); // BARU
 
         // Scan QR Siswa
         Route::get('/scan', [ScanSiswaController::class, 'index'])->name('scan');
         Route::post('/scan', [ScanSiswaController::class, 'store'])->name('scan.store'); // BARU
+
+        // Submit Leave Siswa
+        Route::get('/leave', [LeaveSiswaController::class, 'index'])->name('leave'); // BARU
+        Route::post('/leave', [LeaveSiswaController::class, 'store'])->name('leave.store'); // BARU
     });
 
     // Alias Route student.*

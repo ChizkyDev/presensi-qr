@@ -85,9 +85,9 @@
                         <span>My Attendance</span>
                     </a>
 
-                    <a href="#" 
-                       class="nav-link sidebar-link d-flex align-items-center gap-3 px-3 py-2 rounded-3 {{ request()->routeIs('student.leave*') ? 'active-menu' : '' }}">
-                        <i class="bi bi-file-earmark-text fs-5"></i>
+                    <a href="{{ Route::has('siswa.leave') ? route('siswa.leave') : '#' }}"
+                    class="nav-link sidebar-link d-flex align-items-center gap-3 px-3 py-2 rounded-3 {{ request()->routeIs('siswa.leave*') ? 'active-menu' : '' }}">
+                        <i class="bi bi-calendar-plus-fill fs-5"></i>
                         <span>Submit Leave</span>
                     </a>
 

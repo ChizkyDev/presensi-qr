@@ -14,9 +14,13 @@ class IzinSakit extends Model
     protected $fillable = [
         'siswa_id',
         'tanggal',
+        'tanggal_selesai',
+        'jumlah_hari',
         'jenis',
         'keterangan',
         'bukti_file',
+        'kontak_darurat',
+        'hubungan_kontak',
         'status_approve',
     ];
 
@@ -26,5 +30,25 @@ class IzinSakit extends Model
     public function siswa()
     {
         return $this->belongsTo(Siswa::class, 'siswa_id');
+    }
+
+    /**
+     * Kode pengajuan untuk ditampilkan, contoh: LR-003
+     */
+    public function getKodeAttribute(): string
+    {
+        return 'LR-' . str_pad($this->id, 3, '0', STR_PAD_LEFT);
+    }
+
+    /**
+     * Label jenis izin untuk ditampilkan.
+     */
+    public function getJenisLabelAttribute(): string
+    {
+        return [
+            'sakit'   => 'Sick Leave',
+            'izin'    => 'Personal Reason',
+            'darurat' => 'Emergency',
+        ][$this->jenis] ?? ucfirst((string) $this->jenis);
     }
 }

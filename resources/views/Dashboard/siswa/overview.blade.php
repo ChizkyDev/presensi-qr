@@ -3,20 +3,23 @@
 @section('title', 'Overview - Student Dashboard')
 
 @section('content')
+@php
+    $activeSiswa = $siswa ?? Auth::user()->siswa ?? null;
+    $activeUser = $user ?? Auth::user();
+    $siswaKelas = $activeSiswa?->kelas ?? ($kelas ?? ($activeUser->kelas ?? null));
+@endphp
+
 <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
         <h3 class="fw-bold text-dark mb-0">Overview</h3>
         <small class="text-muted">
-            {{ Auth::user()->siswa->nama ?? Auth::user()->name }} · 
-            @php
-                $siswaKelas = optional(Auth::user()->siswa)->kelas ?? $kelas ?? optional($siswa ?? null)->kelas ?? Auth::user()->kelas ?? $user->kelas ?? null;
-            @endphp
+            {{ $activeSiswa->nama ?? $activeUser->name ?? 'Siswa' }} ·
             @if(is_object($siswaKelas))
                 {{ trim(($siswaKelas->kelas ?? $siswaKelas->nama_kelas ?? $siswaKelas->nama ?? '') . ' ' . ($siswaKelas->jurusan ?? '') . ' ' . ($siswaKelas->nomor_kelas ?? '')) ?: '-' }}
             @else
                 {{ $siswaKelas ?? '-' }}
             @endif
-            · NIS {{ Auth::user()->siswa->nis ?? $siswa->nis ?? $user->nis ?? '-' }}
+            · NIS {{ $activeSiswa->nis ?? $activeUser->nis ?? '-' }}
         </small>
     </div>
     <div class="bg-white px-3 py-2 rounded-pill shadow-sm border text-primary fw-semibold fs-7">
@@ -119,13 +122,15 @@
                 @forelse($todaySessions ?? [] as $session)
                     <div class="d-flex align-items-center justify-content-between p-2 rounded-3 hover-bg">
                         <div>
-                            <div class="fw-semibold text-dark fs-7">{{ $session->subject_name }}</div>
-                            <small class="text-muted">{{ \Carbon\Carbon::parse($session->time)->format('H:i') }} WIB</small>
+                            <div class="fw-semibold text-dark fs-7">{{ $session->subject_name ?? ($session->mapel ?? 'Mata Pelajaran') }}</div>
+                            <small class="text-muted">{{ \Carbon\Carbon::parse($session->time ?? ($session->created_at ?? now()))->format('H:i') }} WIB</small>
                         </div>
-                        @if($session->status == 'Present')
+                        @if(($session->status ?? '') === 'Present')
                             <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-3 py-1">Present</span>
-                        @elseif($session->status == 'Late')
+                        @elseif(($session->status ?? '') === 'Late')
                             <span class="badge bg-warning-subtle text-warning border border-warning-subtle rounded-pill px-3 py-1">Late</span>
+                        @elseif(($session->status ?? '') === 'Absent')
+                            <span class="badge bg-danger-subtle text-danger border border-danger-subtle rounded-pill px-3 py-1">Absent</span>
                         @else
                             <span class="badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill px-3 py-1">Upcoming</span>
                         @endif
@@ -178,11 +183,11 @@
                                         $status = $calendarGrid[$week][$day] ?? '-';
                                     @endphp
                                     <td>
-                                        @if($status == 'P')
+                                        @if($status === 'P')
                                             <span class="badge bg-success-subtle text-success rounded-3 w-100 py-2">P</span>
-                                        @elseif($status == 'L')
+                                        @elseif($status === 'L')
                                             <span class="badge bg-warning-subtle text-warning rounded-3 w-100 py-2">L</span>
-                                        @elseif($status == 'A')
+                                        @elseif($status === 'A')
                                             <span class="badge bg-danger-subtle text-danger rounded-3 w-100 py-2">A</span>
                                         @else
                                             <span class="badge bg-light text-muted rounded-3 w-100 py-2">-</span>
@@ -194,7 +199,7 @@
                     </tbody>
                 </table>
             </div>
-            
+
             <div class="d-flex gap-3 fs-7 text-muted mt-3">
                 <span><span class="badge bg-success-subtle text-success me-1">P</span> Present</span>
                 <span><span class="badge bg-warning-subtle text-warning me-1">L</span> Late</span>
@@ -225,7 +230,15 @@
                 <div class="bg-primary bg-opacity-10 text-primary rounded-pill py-2 px-3 d-inline-flex align-items-center gap-2 mb-2 fs-7 fw-semibold">
                     <i class="bi bi-hand-thumbs-up-fill"></i> {{ $streakDays ?? 0 }}-day streak!
                 </div>
-                <p class="text-muted fs-7 mb-0">Keep it up — you're in the top 10% of your class</p>
+                <p class="text-muted fs-7 mb-0">
+                    @if(($attendancePercentage ?? 0) >= 85)
+                        Consistent attendance record this month
+                    @elseif(($attendancePercentage ?? 0) >= 75)
+                        Steady progress — keep tracking your attendance
+                    @else
+                        Check your attendance history and upcoming sessions
+                    @endif
+                </p>
             </div>
         </div>
     </div>

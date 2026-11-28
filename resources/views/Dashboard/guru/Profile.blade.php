@@ -5,9 +5,10 @@
 @section('content')
 @php
     $inisial = strtoupper(substr($guru->nama ?? $user->name, 0, 2));
+    $editing = $errors->any();   // kalau ada error validasi, langsung buka mode edit
 @endphp
 
-<div class="teacher-overview p-0" style="max-width: 1320px; margin: 0 auto;">
+<div class="teacher-overview p-0 {{ $editing ? 'is-editing' : '' }}" id="profileRoot" style="max-width: 1320px; margin: 0 auto;">
 
     <!-- ── HEADER TITLE & ACTION BUTTONS ── -->
     <div class="d-flex justify-content-between align-items-center mb-4 px-1">
@@ -15,13 +16,25 @@
             <h3 class="fw-bold text-dark mb-1" style="font-size: 1.5rem;">My Profile</h3>
             <p class="text-muted mb-0" style="font-size: 0.85rem;">Student Identity & Attendance Journey</p>
         </div>
-        <div class="d-flex gap-2">
-            <a href="#" class="btn btn-light rounded-pill px-3 py-2 text-primary fw-medium bg-white shadow-sm border" style="font-size: 0.85rem;">
+
+        {{-- Tombol mode lihat --}}
+        <div class="d-flex gap-2 view-only">
+            <button type="button" id="btnChangePassword" class="btn btn-light rounded-pill px-3 py-2 text-primary fw-medium bg-white shadow-sm border" style="font-size: 0.85rem;">
                 <i class="bi bi-key me-1"></i> Change password
-            </a>
-            <a href="#" class="btn btn-primary rounded-pill px-4 py-2 text-white fw-medium shadow-sm border-0" style="background-color: #2563eb; font-size: 0.85rem;">
+            </button>
+            <button type="button" id="btnEdit" class="btn btn-primary rounded-pill px-4 py-2 text-white fw-medium shadow-sm border-0" style="background-color: #2563eb; font-size: 0.85rem;">
                 <i class="bi bi-pencil-square me-1"></i> Edit profile
-            </a>
+            </button>
+        </div>
+
+        {{-- Tombol mode edit --}}
+        <div class="d-flex gap-2 edit-only">
+            <button type="button" id="btnCancel" class="btn btn-light rounded-pill px-3 py-2 text-primary fw-medium bg-white shadow-sm border" style="font-size: 0.85rem;">
+                Cancel
+            </button>
+            <button type="submit" form="profileForm" class="btn btn-primary rounded-pill px-4 py-2 text-white fw-medium shadow-sm border-0" style="background-color: #2563eb; font-size: 0.85rem;">
+                <i class="bi bi-check2-circle me-1"></i> Save Changes
+            </button>
         </div>
     </div>
 
@@ -34,6 +47,21 @@
     @if(session('error'))
         <div class="alert alert-danger rounded-4 mb-4 shadow-sm">{{ session('error') }}</div>
     @endif
+    @if($errors->any())
+        <div class="alert alert-danger rounded-4 mb-4 shadow-sm">
+            <ul class="mb-0 small">
+                @foreach($errors->all() as $error)
+                    <li>{{ $error }}</li>
+                @endforeach
+            </ul>
+        </div>
+    @endif
+
+    {{-- Form kosong: semua input di bawah terhubung lewat atribut form="profileForm" --}}
+    <form id="profileForm" action="{{ route('guru.profile.update') }}" method="POST" class="d-none">
+        @csrf
+        @method('PUT')
+    </form>
 
     <!-- ── TOP HERO BANNER: TEACHER INFO CARD ── -->
     <div class="card border-0 rounded-4 p-4 shadow-sm bg-white mb-4">
@@ -70,21 +98,25 @@
         <!-- LEFT COLUMN: Personal Information & Recent Activity -->
         <div class="col-lg-6 d-flex flex-column gap-4">
 
-            <!-- Personal Information Card -->
+            <!-- Personal Information Card (mode lihat + mode edit) -->
             <div class="card border-0 rounded-4 p-4 shadow-sm bg-white">
                 <div class="d-flex justify-content-between align-items-center mb-4">
                     <div class="d-flex align-items-center gap-3">
                         <div class="rounded-3 d-flex align-items-center justify-content-center p-2" style="background-color: #eff6ff; color: #3b82f6; width: 36px; height: 36px;">
                             <i class="bi bi-person fs-5"></i>
                         </div>
-                        <h6 class="fw-bold text-dark mb-0" style="font-size: 1rem;">Personal Information</h6>
+                        <div>
+                            <h6 class="fw-bold text-dark mb-0" style="font-size: 1rem;">Personal Information</h6>
+                            <small class="text-muted edit-only" style="font-size: 0.72rem;">Update your contact and relevant details.</small>
+                        </div>
                     </div>
-                    <span class="badge rounded-pill px-3 py-1 fw-medium" style="background-color: #ecfdf5; color: #10b981; font-size: 0.7rem;">
+                    <span class="badge rounded-pill px-3 py-1 fw-medium view-only" style="background-color: #ecfdf5; color: #10b981; font-size: 0.7rem;">
                         <i class="bi bi-check-circle me-1"></i> VERIFIED DIRECTORY DATA
                     </span>
                 </div>
 
-                <div class="row g-3" style="font-size: 0.85rem;">
+                {{-- Mode lihat --}}
+                <div class="row g-3 view-only" style="font-size: 0.85rem;">
                     <div class="col-6">
                         <span class="text-muted d-block mb-1" style="font-size: 0.75rem;">EMAIL</span>
                         <span class="fw-bold text-dark">{{ $user->email }}</span>
@@ -100,6 +132,61 @@
                     <div class="col-6 pt-2">
                         <span class="text-muted d-block mb-1" style="font-size: 0.75rem;">HOMEROOM</span>
                         <span class="fw-bold text-dark">{{ $guru->homeroom ?: '-' }}</span>
+                    </div>
+                </div>
+
+                {{-- Mode edit --}}
+                <div class="row g-3 edit-only">
+                    <div class="col-md-6">
+                        <label class="form-label text-muted mb-1" style="font-size: 0.75rem;">Full Name</label>
+                        <input type="text" name="nama" form="profileForm" class="form-control rounded-3 bg-light border-0 py-2 @error('nama') is-invalid @enderror"
+                               value="{{ old('nama', $guru->nama ?? $user->name) }}" required>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label text-muted mb-1" style="font-size: 0.75rem;">Email Address</label>
+                        <input type="email" name="email" form="profileForm" class="form-control rounded-3 bg-light border-0 py-2 @error('email') is-invalid @enderror"
+                               value="{{ old('email', $user->email) }}" required>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label text-muted mb-1" style="font-size: 0.75rem;">Teacher Number</label>
+                        <input type="text" name="nip" form="profileForm" class="form-control rounded-3 bg-light border-0 py-2 @error('nip') is-invalid @enderror"
+                               value="{{ old('nip', $guru->nip) }}" required>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label text-muted mb-1" style="font-size: 0.75rem;">Primary Subject</label>
+                        <input type="text" name="subject" form="profileForm" class="form-control rounded-3 bg-light border-0 py-2 @error('subject') is-invalid @enderror"
+                               value="{{ old('subject', $guru->subject) }}" placeholder="Mathematics">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label text-muted mb-1" style="font-size: 0.75rem;">Homeroom</label>
+                        <input type="text" name="homeroom" form="profileForm" list="kelasOptions" class="form-control rounded-3 bg-light border-0 py-2 @error('homeroom') is-invalid @enderror"
+                               value="{{ old('homeroom', $guru->homeroom) }}" placeholder="12 RPL 1" autocomplete="off">
+                        <datalist id="kelasOptions">
+                            @foreach($kelasOptions as $opsi)
+                                <option value="{{ $opsi }}"></option>
+                            @endforeach
+                        </datalist>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Security & password (hanya tampil di mode edit) -->
+            <div class="card border-0 rounded-4 p-4 shadow-sm bg-white edit-only" id="security">
+                <h6 class="fw-bold text-dark mb-1" style="font-size: 1rem;">Security &amp; password</h6>
+                <p class="text-muted mb-4" style="font-size: 0.78rem;">Leave password fields blank to keep your current password.</p>
+
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label text-muted mb-1" style="font-size: 0.75rem;">New Password</label>
+                        <input type="password" name="password" id="newPassword" form="profileForm"
+                               class="form-control rounded-3 bg-light border-0 py-2 @error('password') is-invalid @enderror"
+                               placeholder="Enter new password" autocomplete="new-password">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label text-muted mb-1" style="font-size: 0.75rem;">Confirm Password</label>
+                        <input type="password" name="password_confirmation" form="profileForm"
+                               class="form-control rounded-3 bg-light border-0 py-2"
+                               placeholder="Repeat new password" autocomplete="new-password">
                     </div>
                 </div>
             </div>
@@ -221,4 +308,34 @@
 
     </div>
 </div>
+
+<style>
+    /* Tampilkan elemen sesuai mode */
+    #profileRoot:not(.is-editing) .edit-only { display: none !important; }
+    #profileRoot.is-editing .view-only { display: none !important; }
+</style>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const root = document.getElementById('profileRoot');
+        const profileUrl = @json(route('guru.profile'));
+
+        document.getElementById('btnEdit').addEventListener('click', function () {
+            root.classList.add('is-editing');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        });
+
+        document.getElementById('btnChangePassword').addEventListener('click', function () {
+            root.classList.add('is-editing');
+            const section = document.getElementById('security');
+            section.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            document.getElementById('newPassword').focus({ preventScroll: true });
+        });
+
+        // Cancel: muat ulang halaman supaya semua isian kembali ke data di database
+        document.getElementById('btnCancel').addEventListener('click', function () {
+            window.location.href = profileUrl;
+        });
+    });
+</script>
 @endsection

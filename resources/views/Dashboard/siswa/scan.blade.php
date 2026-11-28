@@ -3,8 +3,36 @@
 @section('title', 'Scan QR Code - Student Dashboard')
 
 @section('content')
+@php
+    $session = $activeSession ?? null;
+    $kelasObj = $session?->kelas ?? ($siswa?->kelas ?? null);
+
+    $kelasLabel = '-';
+    if (is_object($kelasObj)) {
+        $kelasLabel = $kelasObj->nama_lengkap
+            ?? trim(($kelasObj->kelas ?? $kelasObj->nama_kelas ?? $kelasObj->nama ?? '') . ' ' . ($kelasObj->jurusan ?? '') . ' ' . ($kelasObj->nomor_kelas ?? ''))
+            ?: '-';
+    } elseif (is_string($kelasObj) && $kelasObj !== '') {
+        $kelasLabel = $kelasObj;
+    }
+
+    $ruanganLabel = $session?->ruangan ?? $session?->room ?? $session?->lab ?? 'Kelas';
+    $mapelLabel = $session?->mapel ?? $session?->subject_name ?? 'Tidak ada sesi aktif';
+
+    $expiredAt = $session?->expired_at ? \Carbon\Carbon::parse($session->expired_at) : null;
+    $nowCarbon = \Carbon\Carbon::now();
+
+    if ($session && $expiredAt) {
+        $remainingMinutes = max(0, (int) $nowCarbon->diffInMinutes($expiredAt, false));
+        $expiredMinutes = max(1, (int) \Carbon\Carbon::parse($session->created_at ?? $nowCarbon)->diffInMinutes($expiredAt));
+    } else {
+        $remainingMinutes = null;
+        $expiredMinutes = null;
+    }
+@endphp
+
 <div class="container-fluid px-0">
-    
+
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
             <h3 class="fw-bold text-dark mb-0">Scan QR Code</h3>
@@ -24,7 +52,15 @@
                         </div>
                         <div>
                             <h5 class="fw-bold mb-0 text-dark" style="font-size: 16px;">Scan Attendance QR</h5>
-                            <small class="text-muted" style="font-size: 12px;">Expired on 15 minutes</small>
+                            <small class="text-muted" style="font-size: 12px;">
+                                @if($expiredMinutes)
+                                    Expired in {{ $expiredMinutes }} minutes
+                                @elseif($session)
+                                    Active session
+                                @else
+                                    No active session
+                                @endif
+                            </small>
                         </div>
                     </div>
                     <span id="camera-label" class="text-muted fw-medium" style="font-size: 11px; letter-spacing: 0.5px;">HD · READY</span>
@@ -37,10 +73,10 @@
                 </div>
 
                 <div class="position-relative rounded-4 overflow-hidden bg-light border d-flex align-items-center justify-content-center" style="min-height: 440px;">
-                    
+
                     {{-- Area Reader (Placeholder, Live Video, & Success Checkmark) --}}
                     <div id="reader" style="width: 100%; height: 100%; border: none !important; display: flex; align-items: center; justify-content: center;" class="rounded-4 p-0 position-relative">
-                        
+
                         {{-- Standby / Upload Placeholder --}}
                         <div id="upload-placeholder" class="text-center p-4">
                             <i class="bi bi-qr-code display-4 text-muted mb-2"></i>
@@ -83,15 +119,15 @@
 
                 {{-- Tombol Kontrol Bawah --}}
                 <div class="d-flex align-items-center justify-content-center gap-3 my-3">
-                    <button type="button" class="btn btn-light border rounded-circle d-flex align-items-center justify-content-center text-muted shadow-sm" style="width: 45px; height: 45px;" title="Toggle Flash">
+                    <button type="button" id="btn-toggle-flash" class="btn btn-light border rounded-circle d-flex align-items-center justify-content-center text-muted shadow-sm" style="width: 45px; height: 45px;" title="Toggle Flash">
                         <i class="bi bi-lightning-charge"></i>
                     </button>
-                    
+
                     {{-- Tombol Scan Biru --}}
                     <button type="button" id="btn-camera-scan" class="btn btn-primary rounded-circle d-flex align-items-center justify-content-center shadow" style="width: 55px; height: 55px; background-color: #2563eb;" title="Start Camera Scan">
                         <i class="bi bi-fullscreen fs-5 text-white"></i>
                     </button>
-                    
+
                     <button type="button" class="btn btn-light border rounded-circle d-flex align-items-center justify-content-center text-muted shadow-sm" style="width: 45px; height: 45px;" title="Refresh Page" onclick="location.reload();">
                         <i class="bi bi-arrow-repeat"></i>
                     </button>
@@ -100,9 +136,9 @@
                 <div class="d-flex justify-content-between align-items-center mt-3 pt-3 border-top text-muted" style="font-size: 11px; letter-spacing: 0.5px;">
                     <span><i class="bi bi-shield-lock me-1"></i> ENCRYPTED SCAN PROCESSING</span>
                     <div>
-                        <span class="text-muted me-3">TEST</span>
-                        <span class="text-muted me-3">INVALID</span>
-                        <span class="text-muted">CODE</span>
+                        <span class="text-muted me-3">QR</span>
+                        <span class="text-muted me-3">CODE</span>
+                        <span class="text-muted">LIVE</span>
                     </div>
                 </div>
 
@@ -110,25 +146,42 @@
         </div>
 
         <div class="col-lg-4 d-flex flex-column gap-4">
-            
+
             <div class="card border-0 shadow-sm rounded-4 p-4 bg-white">
                 <span class="text-uppercase text-muted fw-bold mb-2" style="font-size: 10px; letter-spacing: 0.5px;">Current Class</span>
-                <h4 class="fw-bold text-dark mb-1">Mathematics</h4>
-                <p class="text-muted small mb-3">XII-A • Lab 1</p>
-                <div class="alert alert-success bg-success-subtle border-0 text-success rounded-3 py-2 px-3 small fw-semibold mb-0">
-                    <i class="bi bi-clock-history me-1"></i> Session Open – 22 min Left
-                </div>
+                <h4 class="fw-bold text-dark mb-1">{{ $mapelLabel }}</h4>
+                <p class="text-muted small mb-3">{{ $kelasLabel }} • {{ $ruanganLabel }}</p>
+
+                @if($session)
+                    @if(!is_null($remainingMinutes) && $remainingMinutes > 0)
+                        <div class="alert alert-success bg-success-subtle border-0 text-success rounded-3 py-2 px-3 small fw-semibold mb-0">
+                            <i class="bi bi-clock-history me-1"></i> Session Open – {{ $remainingMinutes }} min Left
+                        </div>
+                    @elseif(!is_null($remainingMinutes) && $remainingMinutes <= 0)
+                        <div class="alert alert-danger bg-danger-subtle border-0 text-danger rounded-3 py-2 px-3 small fw-semibold mb-0">
+                            <i class="bi bi-clock-history me-1"></i> Session Expired
+                        </div>
+                    @else
+                        <div class="alert alert-success bg-success-subtle border-0 text-success rounded-3 py-2 px-3 small fw-semibold mb-0">
+                            <i class="bi bi-check-circle me-1"></i> Session Active
+                        </div>
+                    @endif
+                @else
+                    <div class="alert alert-secondary bg-secondary-subtle border-0 text-secondary rounded-3 py-2 px-3 small fw-semibold mb-0">
+                        <i class="bi bi-info-circle me-1"></i> Belum ada sesi aktif untuk kelas ini
+                    </div>
+                @endif
             </div>
 
             <div class="card border-0 shadow-sm rounded-4 p-4 bg-white">
                 <span class="text-uppercase text-muted fw-bold mb-3" style="font-size: 10px; letter-spacing: 0.5px;">Quick Actions</span>
-                
+
                 <div class="d-flex flex-column gap-2">
-                    <button type="button" class="btn btn-light border text-start py-2 px-3 rounded-3 d-flex justify-content-between align-items-center fw-semibold text-dark">
+                    <button type="button" id="btn-manual-code" class="btn btn-light border text-start py-2 px-3 rounded-3 d-flex justify-content-between align-items-center fw-semibold text-dark">
                         <span><i class="bi bi-keyboard text-primary me-2"></i> Enter session code</span>
                         <i class="bi bi-chevron-right small text-muted"></i>
                     </button>
-                    
+
                     <label class="btn btn-light border text-start py-2 px-3 rounded-3 d-flex justify-content-between align-items-center fw-semibold text-dark mb-0" style="cursor: pointer;">
                         <span><i class="bi bi-upload text-primary me-2"></i> Upload QR image</span>
                         <i class="bi bi-chevron-right small text-muted"></i>
@@ -142,11 +195,33 @@
                     <i class="bi bi-exclamation-triangle-fill text-warning fs-5"></i>
                     <div>
                         <h6 class="fw-bold text-dark mb-1" style="font-size: 14px;">Informasi Scanner</h6>
-                        <p class="text-muted mb-0" style="font-size: 12px;">Klik tombol biru di bawah untuk menyalakan kamera live, atau gunakan menu upload file QR di atas.</p>
+                        <p class="text-muted mb-0" style="font-size: 12px;">Klik tombol biru di bawah untuk menyalakan kamera live, atau gunakan menu upload file QR / input kode sesi di atas.</p>
                     </div>
                 </div>
             </div>
 
+        </div>
+    </div>
+</div>
+
+{{-- Modal Input Kode Sesi Manual --}}
+<div class="modal fade" id="manualCodeModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rounded-4 border-0 shadow">
+            <div class="modal-header border-0 pb-0">
+                <h6 class="modal-title fw-bold">Enter Session Code</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="manualCodeForm">
+                <div class="modal-body">
+                    <label for="manualSessionCode" class="form-label small text-muted">Kode Sesi / Token QR</label>
+                    <input type="text" id="manualSessionCode" class="form-control rounded-3" placeholder="Masukkan kode sesi..." required>
+                </div>
+                <div class="modal-footer border-0 pt-0">
+                    <button type="button" class="btn btn-light rounded-pill px-3" data-bs-dismiss="modal">Batal</button>
+                    <button type="submit" class="btn btn-primary rounded-pill px-4" style="background-color: #2563eb;">Kirim</button>
+                </div>
+            </form>
         </div>
     </div>
 </div>
@@ -164,16 +239,21 @@
         const successCheckmark = document.getElementById('success-checkmark');
         const decodedResultText = document.getElementById('decoded-result-text');
         const btnCameraScan = document.getElementById('btn-camera-scan');
+        const btnToggleFlash = document.getElementById('btn-toggle-flash');
+        const btnManualCode = document.getElementById('btn-manual-code');
+        const manualCodeModalEl = document.getElementById('manualCodeModal');
+        const manualCodeForm = document.getElementById('manualCodeForm');
+        const manualSessionCodeInput = document.getElementById('manualSessionCode');
         const statusBadge = document.getElementById('scanner-status-badge');
         const cameraLabel = document.getElementById('camera-label');
 
-        // URL tujuan penyimpanan absensi (route siswa.scan.store) + token CSRF
         const scanUrl = @json(route('siswa.scan.store'));
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || @json(csrf_token());
 
         let videoStream = null;
         let isScanning = false;
         let isSubmitting = false;
+        let flashOn = false;
 
         function setBadge(type, text) {
             const styles = {
@@ -187,13 +267,15 @@
 
         function stopCamera() {
             isScanning = false;
+            flashOn = false;
+            btnToggleFlash.classList.remove('btn-warning', 'text-dark');
+            btnToggleFlash.classList.add('btn-light', 'text-muted');
             if (videoStream) {
                 videoStream.getTracks().forEach(track => track.stop());
                 videoStream = null;
             }
         }
 
-        // Tampil setelah server mengonfirmasi absensi tersimpan
         function showSuccessState(message) {
             stopCamera();
             placeholder.style.display = 'none';
@@ -203,7 +285,6 @@
             setBadge('success', "● " + message);
         }
 
-        // Tampil kalau server menolak (sesi berakhir, kelas salah, sudah absen, dll.)
         function showErrorState(message) {
             stopCamera();
             successCheckmark.style.display = 'none';
@@ -218,7 +299,6 @@
             setBadge('danger', "● " + message);
         }
 
-        // Kirim isi QR ke server
         async function submitAttendance(payload) {
             if (isSubmitting) return;
             isSubmitting = true;
@@ -238,7 +318,7 @@
                 const data = await res.json().catch(() => ({}));
 
                 if (res.ok && data.success) {
-                    showSuccessState(data.message);
+                    showSuccessState(data.message || "Absensi berhasil dicatat.");
                 } else {
                     showErrorState(data.message || "Gagal mengirim absensi. Coba lagi.");
                 }
@@ -256,7 +336,7 @@
                 canvas.width = video.videoWidth;
                 canvas.height = video.videoHeight;
                 ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                
+
                 const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
                 const code = jsQR(imageData.data, imageData.width, imageData.height, {
                     inversionAttempts: "dontInvert",
@@ -270,7 +350,6 @@
             requestAnimationFrame(scanCameraFrame);
         }
 
-        // Trigger Live Camera hanya saat tombol biru diklik
         btnCameraScan.addEventListener('click', function () {
             stopCamera();
             successCheckmark.style.display = 'none';
@@ -286,19 +365,61 @@
                     video.srcObject = stream;
                     video.setAttribute("playsinline", true);
                     video.play();
-                    
+
                     placeholder.style.display = 'none';
                     video.style.display = 'block';
-                    
+
                     setBadge('success', "● Kamera Aktif - Scanning...");
                     cameraLabel.textContent = "HD · LIVE CAMERA";
 
                     isScanning = true;
                     requestAnimationFrame(scanCameraFrame);
                 })
-                .catch(function (err) {
+                .catch(function () {
                     showNoCameraError();
                 });
+        });
+
+        btnToggleFlash.addEventListener('click', async function () {
+            if (!videoStream) {
+                setBadge('neutral', "● Aktifkan kamera terlebih dahulu untuk menggunakan flash");
+                return;
+            }
+            const track = videoStream.getVideoTracks()[0];
+            const capabilities = track?.getCapabilities ? track.getCapabilities() : {};
+            if (!capabilities.torch) {
+                setBadge('neutral', "● Flash tidak didukung di perangkat/kamera ini");
+                return;
+            }
+            try {
+                flashOn = !flashOn;
+                await track.applyConstraints({ advanced: [{ torch: flashOn }] });
+                btnToggleFlash.classList.toggle('btn-warning', flashOn);
+                btnToggleFlash.classList.toggle('text-dark', flashOn);
+                btnToggleFlash.classList.toggle('btn-light', !flashOn);
+                btnToggleFlash.classList.toggle('text-muted', !flashOn);
+            } catch (err) {
+                setBadge('danger', "● Gagal mengubah status flash");
+            }
+        });
+
+        btnManualCode.addEventListener('click', function () {
+            manualSessionCodeInput.value = '';
+            if (window.bootstrap && manualCodeModalEl) {
+                const modal = bootstrap.Modal.getOrCreateInstance(manualCodeModalEl);
+                modal.show();
+                setTimeout(() => manualSessionCodeInput.focus(), 200);
+            }
+        });
+
+        manualCodeForm.addEventListener('submit', function (e) {
+            e.preventDefault();
+            const codeVal = manualSessionCodeInput.value.trim();
+            if (!codeVal) return;
+            if (window.bootstrap && manualCodeModalEl) {
+                bootstrap.Modal.getOrCreateInstance(manualCodeModalEl).hide();
+            }
+            submitAttendance(codeVal);
         });
 
         function showNoCameraError() {
@@ -310,34 +431,32 @@
             placeholder.innerHTML = `
                 <i class="bi bi-camera-video-off display-4 text-danger mb-2"></i>
                 <h6 class="fw-bold text-danger mb-1">Tidak Ada Kamera di Perangkat Anda</h6>
-                <p class="text-muted small mb-0">Perangkat tidak mendeteksi kamera. Silakan gunakan <strong>Upload QR image</strong>.</p>
+                <p class="text-muted small mb-0">Perangkat tidak mendeteksi kamera. Silakan gunakan <strong>Upload QR image</strong> atau <strong>Enter session code</strong>.</p>
             `;
-            alert("Tidak ada kamera di perangkat Anda! Silakan gunakan fitur 'Upload QR image' di Quick Actions.");
         }
 
-        // Handle Upload File Gambar QR
         fileInput.addEventListener('change', e => {
-            if (e.target.files.length == 0) return;
+            if (e.target.files.length === 0) return;
             const imageFile = e.target.files[0];
             stopCamera();
-            
+
             const reader = new FileReader();
-            reader.onload = function(event) {
+            reader.onload = function (event) {
                 const img = new Image();
-                img.onload = function() {
+                img.onload = function () {
                     canvas.width = img.width;
                     canvas.height = img.height;
                     ctx.drawImage(img, 0, 0, img.width, img.height);
-                    
+
                     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
                     const code = jsQR(imageData.data, imageData.width, imageData.height, {
                         inversionAttempts: "dontInvert",
                     });
-                    
+
                     if (code) {
                         submitAttendance(code.data);
                     } else {
-                        alert("Gagal membaca QR dari gambar. Pastikan file gambar memiliki QR Code yang jelas.");
+                        showErrorState("Gagal membaca QR dari gambar. Pastikan file gambar memiliki QR Code yang jelas.");
                     }
                     fileInput.value = "";
                 };
@@ -347,7 +466,7 @@
         });
     });
 </script>
-   
+
 <style>
     #reader {
         background-color: #ffffff;

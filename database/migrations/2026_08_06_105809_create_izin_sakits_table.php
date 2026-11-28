@@ -15,18 +15,24 @@ return new class extends Migration
                   ->constrained('siswas')
                   ->cascadeOnDelete();
 
-            $table->date('tanggal');
+            $table->date('tanggal');                                  // tanggal mulai
+            $table->date('tanggal_selesai')->nullable();              // tanggal selesai
+            $table->unsignedSmallInteger('jumlah_hari')->default(1);  // durasi (hari), dihitung server
 
-            $table->enum('jenis',[
-                'izin',
-                'sakit'
+            $table->enum('jenis', [
+                'izin',      // Personal Reason
+                'sakit',     // Sick Leave
+                'darurat'    // Emergency
             ]);
 
             $table->text('keterangan');
 
             $table->string('bukti_file')->nullable();
 
-            $table->enum('status_approve',[
+            $table->string('kontak_darurat', 20)->nullable();
+            $table->string('hubungan_kontak', 50)->nullable();
+
+            $table->enum('status_approve', [
                 'pending',
                 'diterima',
                 'ditolak'

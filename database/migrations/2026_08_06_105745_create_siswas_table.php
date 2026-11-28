@@ -23,6 +23,8 @@ return new class extends Migration
             $table->string('nama');
             $table->string('foto')->nullable();
 
+            $table->string('wali_nama', 100)->nullable();   // nama guardian
+
             $table->timestamps();
         });
     }

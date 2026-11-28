@@ -312,7 +312,7 @@ class DashboardOverviewController extends Controller
                 ->count();
 
             $permittedCount = IzinSakit::where('siswa_id', $siswaId)
-                ->where('status_approve', 'approved')
+                ->whereIn('status_approve', ['diterima', 'approved'])
                 ->whereMonth('tanggal', $currentMonth)
                 ->whereYear('tanggal', $currentYear)
                 ->count();
@@ -329,18 +329,135 @@ class DashboardOverviewController extends Controller
             $absentCount = 0;
         }
 
-        $todaySessions = $siswa && $siswa->kelas_id
-            ? SesiPresensi::with(['kelas'])
+        $todaySessions = collect();
+        if ($siswa && $siswa->kelas_id) {
+            $sessions = SesiPresensi::with(['kelas'])
                 ->where('kelas_id', $siswa->kelas_id)
                 ->whereDate('created_at', $today)
                 ->latest('created_at')
-                ->get()
-            : collect();
+                ->get();
+
+            $presensiTodayBySession = $siswaId
+                ? Presensi::where('siswa_id', $siswaId)
+                    ->whereDate('tanggal', $today)
+                    ->whereIn('sesi_presensi_id', $sessions->pluck('id'))
+                    ->get()
+                    ->keyBy('sesi_presensi_id')
+                : collect();
+
+            $todaySessions = $sessions->map(function ($sess) use ($presensiTodayBySession, $today) {
+                $p = $presensiTodayBySession->get($sess->id);
+                $rawStatus = $p?->status;
+
+                if ($rawStatus === 'hadir') {
+                    $displayStatus = 'Present';
+                } elseif ($rawStatus === 'terlambat') {
+                    $displayStatus = 'Late';
+                } elseif (in_array($rawStatus, ['alpa', 'tanpa_keterangan'], true)) {
+                    $displayStatus = 'Absent';
+                } else {
+                    $displayStatus = 'Upcoming';
+                }
+
+                $jamScan = $p?->jam_scan;
+                $tglPresensi = $p?->tanggal ?? $today;
+
+                $timeSource = !empty($jamScan)
+                    ? Carbon::parse($tglPresensi . ' ' . $jamScan)
+                    : Carbon::parse($sess->created_at ?? now());
+
+                return (object) [
+                    'subject_name' => $sess->mapel ?? 'Mata Pelajaran',
+                    'time'         => $timeSource,
+                    'status'       => $displayStatus,
+                ];
+            });
+        }
 
         $totalRecord = $presentCount + $lateCount + $permittedCount + $absentCount;
         $attendancePercentage = $totalRecord > 0
             ? round((($presentCount + $lateCount) / $totalRecord) * 100, 1)
             : 0;
+
+        $dayMap = [
+            1 => 'Mon',
+            2 => 'Tue',
+            3 => 'Wed',
+            4 => 'Thu',
+            5 => 'Fri',
+        ];
+        $weeks = ['W1', 'W2', 'W3', 'W4'];
+        $calendarGrid = [];
+        foreach ($weeks as $w) {
+            $calendarGrid[$w] = [
+                'Mon' => '-',
+                'Tue' => '-',
+                'Wed' => '-',
+                'Thu' => '-',
+                'Fri' => '-',
+            ];
+        }
+
+        $monthlyChartData = [0, 0, 0, 0];
+        $streakDays = 0;
+
+        if ($siswaId) {
+            $monthPresensi = Presensi::where('siswa_id', $siswaId)
+                ->whereMonth('tanggal', $currentMonth)
+                ->whereYear('tanggal', $currentYear)
+                ->orderBy('tanggal')
+                ->get();
+
+            $groupedByWeek = [];
+
+            foreach ($monthPresensi as $row) {
+                $tgl = Carbon::parse($row->tanggal);
+                $dayName = $dayMap[$tgl->dayOfWeekIso] ?? null;
+                $weekNum = min(4, max(1, (int) ceil($tgl->day / 7)));
+                $weekKey = 'W' . $weekNum;
+
+                if ($row->status === 'hadir') {
+                    $code = 'P';
+                } elseif ($row->status === 'terlambat') {
+                    $code = 'L';
+                } elseif (in_array($row->status, ['alpa', 'tanpa_keterangan'], true)) {
+                    $code = 'A';
+                } else {
+                    $code = '-';
+                }
+
+                if ($dayName) {
+                    $calendarGrid[$weekKey][$dayName] = $code;
+                }
+
+                $groupedByWeek[$weekNum][] = $code;
+            }
+
+            foreach (range(1, 4) as $wNum) {
+                $codes = $groupedByWeek[$wNum] ?? [];
+                $countAll = count($codes);
+                if ($countAll > 0) {
+                    $okCount = count(array_filter($codes, fn ($c) => in_array($c, ['P', 'L'], true)));
+                    $monthlyChartData[$wNum - 1] = round(($okCount / $countAll) * 100, 1);
+                }
+            }
+
+            $datesDesc = Presensi::where('siswa_id', $siswaId)
+                ->orderByDesc('tanggal')
+                ->get()
+                ->groupBy('tanggal');
+
+            foreach ($datesDesc as $itemsOnDate) {
+                $hasOk = $itemsOnDate->contains(fn ($r) => in_array($r->status, ['hadir', 'terlambat'], true));
+                $hasBad = $itemsOnDate->contains(fn ($r) => in_array($r->status, ['alpa', 'tanpa_keterangan'], true));
+
+                if ($hasOk && !$hasBad) {
+                    $streakDays++;
+                } else {
+                    break;
+                }
+            }
+        }
 
         return view('Dashboard.siswa.overview', compact(
             'user',
@@ -350,7 +467,10 @@ class DashboardOverviewController extends Controller
             'permittedCount',
             'absentCount',
             'todaySessions',
-            'attendancePercentage'
+            'attendancePercentage',
+            'calendarGrid',
+            'monthlyChartData',
+            'streakDays'
         ));
     }
 }

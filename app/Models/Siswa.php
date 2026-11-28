@@ -17,6 +17,7 @@ class Siswa extends Model
         'nis',
         'nama',
         'foto',
+        'wali_nama',
     ];
 
     // Relasi ke Model Kelas
